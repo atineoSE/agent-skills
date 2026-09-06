@@ -1,0 +1,17 @@
+{
+  "name": "browser-visualization-skill",
+  "version": "1.0.0",
+  "description": "Headless Chrome driver for reviewing locally-served pages — project-agnostic, shared across all projects via ~/.claude/skills",
+  "main": "check.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "private": "true",
+  "dependencies": {
+    "playwright-core": "^1.62.1"
+  }
+}
