@@ -1,7 +1,7 @@
 ---
 name: design-process
 description: Run a design conversation one decision at a time — short turns, plain language, side-threads parked in writing instead of raised in the moment. Use during the interactive design phase before implementation, when scoping changes and locking in decisions, or when the user says "let's design this", "one thing at a time", or asks to slow down / narrow the conversation.
-version: 1.4.0
+version: 1.5.0
 disallowed-tools: AskUserQuestion
 ---
 
@@ -250,3 +250,18 @@ Design is done when nothing is parked that the user wants to pursue, and
 `Decided` reads as a coherent whole. Say so in a sentence and offer to turn
 `Decided` into an implementation plan — that's where `ola-plan` (or an equivalent
 planning skill) takes over. Do not start implementing from inside this skill.
+
+**Commit everything the design changed before the plan is written.** A design
+conversation usually edits more than its notes: a skill, a convention in a
+config file, a rule in `CLAUDE.md`. An ola task works in a worktree carved from
+the project's `HEAD`, so whatever is still uncommitted does not exist for the
+agents who have to act on it. Sweep the working tree and commit before handing
+off, and say in one clause what you committed.
+
+**Skill edits are the case to watch.** A skill is where a decision *lives*: it
+states how things ought to be, in a form every later agent reads without being
+told to. The plan's tasks are the other half of the same design — the work that
+makes the system conform to what the skill now says. Plan against an uncommitted
+skill and the tasks lose the authority they were written against, and every
+instruction the skill already carries has to be re-inlined into the prompts by
+hand.
