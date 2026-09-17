@@ -1,7 +1,8 @@
 ---
 name: design-process
 description: Run a design conversation one decision at a time — short turns, plain language, side-threads parked in writing instead of raised in the moment. Use during the interactive design phase before implementation, when scoping changes and locking in decisions, or when the user says "let's design this", "one thing at a time", or asks to slow down / narrow the conversation.
-version: 1.3.0
+version: 1.4.0
+disallowed-tools: AskUserQuestion
 ---
 
 # Design, one thing at a time
@@ -108,9 +109,10 @@ merits, and a bare menu shifts a burden onto them that is yours to carry. Say
 what you'd do and why, in one clause. Make "you pick" always a valid reply — if
 they say it, decide, log it under Decided, and move on.
 
-For a genuine fork with 2–4 clean options, `AskUserQuestion` is a good fit: one
-question, recommended option first. Use it for forks, not for gathering
-preferences in bulk.
+**Ask in prose, not in a menu.** This skill turns off `AskUserQuestion` in its
+frontmatter. A pre-built option list invites several questions in one call, and
+it hands the user a set of choices before it hands them your recommendation. One
+sentence at the end of the turn does the same work.
 
 ## Sweeps
 
@@ -141,6 +143,16 @@ After investigating, report only the part that bears on the open question. Park
 the rest. If what you found changes a decision already in `Decided`, that
 outranks the current question: say so plainly in one sentence, and make *that*
 the one question on the table.
+
+**Read the project's skills before you ask anything.** The project's
+`.claude/skills/` and your own user skills already settle a lot: file layout,
+naming, where artifacts live, which libraries the project uses, how a plan is
+structured. Whatever they prescribe is decided — follow it and move on. Asking
+about it spends a turn making the user repeat something they already wrote down.
+Raise a point only where the skills leave it open, cover it ambiguously, or
+disagree with each other. If a skill's instruction looks wrong for this
+particular change, that is a real design question: name the skill, say why, and
+make it the one question on the table.
 
 **Check the premise before you make it a fork.** A question built on an
 unverified assumption is worse than no question: the user has to argue with the
