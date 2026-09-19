@@ -1,3 +1,9 @@
 *.pyc
 .DS_Store
 node_modules/
+
+# Claude Code cache of account-synced skills (regenerated on sync)
+Claude/synced/
+
+# Machine-local symlink into the ola repo
+Claude/ola-plan
