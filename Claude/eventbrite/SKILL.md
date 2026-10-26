@@ -8,7 +8,7 @@ allowed-tools: Bash
 
 # Eventbrite API
 
-> **Skill version: 1.2.3** — last verified against a live account on **2026-10-21**
+> **Skill version: 1.3.0** — last verified against a live account on **2026-10-21**
 > (API `v3`, base `https://www.eventbriteapi.com/v3/`).
 >
 > **Keep this in sync.** Whenever you discover a new endpoint, a changed
@@ -247,6 +247,18 @@ ARGUMENTS_ERROR`):
 |---|---|---|
 | GET | `/events/{event_id}/attendees/` | List (paginated, default page size 50) |
 | GET | `/events/{event_id}/attendees/{attendee_id}/` | Get one |
+
+**Sales sources / referral tracking:** each attendee has an `affiliate`
+string (verified live 2026-10-01). It holds the `?aff=` code from the link
+the buyer used. Group attendees by it to get a "sales by source" breakdown.
+Orders do NOT have this field. Codes seen live: `oddtdtcreator` (the share
+link the organizer copies from the dashboard), `oddtdtdirect` (direct visit
+to the event URL with no tracking), `ebemoffollowpublishemail` (email to
+followers when the event is published), `erelpanelorg` (organizer profile
+panel), and `ebds*`/`ebes*`/`ebea*` (Eventbrite search, feed, browse, home
+"for you", and app surfaces). Custom `aff=` values that you put on your own
+links come back as written. Exclude attendees where `cancelled`/`refunded`
+is true.
 
 ### Orders
 | Method | Path | Notes |
