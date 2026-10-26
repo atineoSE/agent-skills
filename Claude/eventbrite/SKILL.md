@@ -8,7 +8,7 @@ allowed-tools: Bash
 
 # Eventbrite API
 
-> **Skill version: 1.2.0** — last verified against a live account on **2026-07-01**
+> **Skill version: 1.2.3** — last verified against a live account on **2026-10-21**
 > (API `v3`, base `https://www.eventbriteapi.com/v3/`).
 >
 > **Keep this in sync.** Whenever you discover a new endpoint, a changed
@@ -319,7 +319,7 @@ AUTH=(-H "Authorization: Bearer $EVENTBRITE_API_KEY")
 # Who am I, and what orgs do I have?
 curl -s "${AUTH[@]}" "https://www.eventbriteapi.com/v3/users/me/"
 ORG=$(curl -s "${AUTH[@]}" "https://www.eventbriteapi.com/v3/users/me/organizations/" \
-  | python3 -c "import json,sys;print(json.load(sys.stdin)['organizations'][0]['id'])")
+  | python3 -c "import json,sys;print(next(o['id'] for o in json.load(sys.stdin)['organizations'] if o['name']=='Malaga AI'))")
 
 # List all events in that org (including past/draft), with venue+tickets inlined
 curl -s "${AUTH[@]}" \
@@ -355,6 +355,22 @@ curl -s -X DELETE "${AUTH[@]}" "https://www.eventbriteapi.com/v3/webhooks/$WEBHO
   live-visible side effect on the account — clean up test resources (e.g.
   `DELETE` a webhook you created to verify permissions) rather than leaving
   them behind.
+- **The token belongs to more than one Organization** — `organizations[0]`
+  is "Azure Málaga" (2027523696823), *not* "Malaga AI" (1998638757773).
+  Creating an event under the wrong org gives `403 NOT_AUTHORIZED`. Pick the
+  org by `name`, never by index.
+- **`summary` and `description` are one field through the API.** Sending
+  both gives `400 SUMMARY_DESCRIPTION_CONFLICT`. `summary` is always the
+  first 140 chars of the description's plain text, with paragraphs glued
+  together with no space, so it gets cut mid-word. Sending `summary` alone
+  *replaces the whole description* with the summary text. To get a clean
+  summary: begin the description with a lead `<p>` sentence of exactly 140
+  chars (ending in a period), then the rest of the body.
+- **Saving an API-created event in the web editor (e.g. to add the cover
+  image) can wipe the long description.** Seen 2026-10-21: after the user
+  uploaded a cover, `description.html` came back as a 140-char plain-text
+  copy of `summary`, and `structured_content.modules` was `[]`. Re-check the
+  description after any web-UI edit, and re-POST `description` if needed.
 - **`event.capacity_is_custom` is read-only** — sending it on event create
   gives `ARGUMENTS_ERROR: capacity_is_custom - Unknown parameter`. Just send
   `capacity`; the server sets `capacity_is_custom` itself.
