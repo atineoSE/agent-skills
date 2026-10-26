@@ -1,15 +1,16 @@
 ---
 name: anytype
-version: 1.3.0
-description: Use the local Anytype HTTP API (via the Anytype CLI / anytype-heart server on 127.0.0.1:31012) to manage spaces, objects, properties, types, tags, and search. Use when the user wants to read, create, or update Anytype content programmatically.
+version: 2.0.0
+description: Use the local Anytype HTTP API (via the Anytype CLI / anytype-heart server on 127.0.0.1:31012) to manage spaces, objects, properties, types, tags, chats, and search — API v2 (AnyBlock documents, batched PATCH ops) and v1. Use when the user wants to read, create, or update Anytype content programmatically.
 user-invocable: true
 allowed-tools: Bash, Read
 ---
 
 # Anytype API
 
-> **Skill version: 1.3.0** — last verified against a live server on **2026-09-03**
-> (`anytype-cli v0.3.6`, API version `2025-11-08`).
+> **Skill version: 2.0.0** — last verified against a live server on **2026-10-26**
+> (`anytype-cli v0.5.0`, embedded anytype-heart v0.51.6, API version `2025-11-08`
+> for both `/v1` and `/v2`).
 >
 > **Keep this in sync.** Whenever you discover new endpoints, a changed
 > response shape, a new `Anytype-Version`, or any behavior that contradicts
@@ -27,9 +28,30 @@ machine. There is no cloud API — everything is served from
 `http://127.0.0.1:31012` and only touches spaces on this device.
 
 - CLI source/docs: https://github.com/anyproto/anytype-cli
-- API reference: https://developers.anytype.io/docs/reference
-- Full OpenAPI spec (ground truth, more reliable than the docs site):
-  `https://raw.githubusercontent.com/anyproto/anytype-heart/main/core/api/docs/openapi.json`
+- API reference: https://developers.anytype.io/docs/reference (v1),
+  https://developers.anytype.io/docs/reference/v2 (v2)
+- Ground truth: the **running server serves its own specs** — fetch these
+  rather than trusting the docs site or this file:
+  - v1: `GET http://127.0.0.1:31012/docs/openapi.json`
+  - v2: `GET http://127.0.0.1:31012/v2/docs/openapi.json` (its `info.description`
+    is a full usage guide), plus the runtime schemas under `/v2/schemas`.
+  (Both specs say the default port is `31009` — that's the Desktop app. The
+  CLI serves on `31012`.)
+
+### Which API to use
+
+Both APIs are served by the same process and port. They use different keys
+(see Prerequisites).
+
+- **v2 (`/v2/...`)** — prefer it for editing documents. It reads and writes
+  whole AnyBlock JSON documents, applies batched atomic edits (`replace_text`,
+  `insert_blocks`, `set_properties`, ...), and returns errors that tell you how
+  to fix the request. It also has the compact filter syntax, ETag concurrency
+  checks, dry runs, chats/discussions, widgets, and SSE streams. It is
+  **pre-release**: the spec says it "can change without a new API version",
+  so re-check `/v2/schemas` when something fails.
+- **v1 (`/v1/...`)** — stable contract. Use it when stability matters, or for
+  the few things v2 lacks: v1 can delete select options (tags) and v2 cannot.
 
 ## Prerequisites
 
@@ -41,12 +63,30 @@ machine. There is no cloud API — everything is served from
    ```
    `anytype serve` binds three ports: `31012` (HTTP API, the one you want),
    `31010` (gRPC), `31011` (gRPC-Web). It only binds to `127.0.0.1`.
-2. An API key must be available in `$ANYTYPE_API_KEY`. If you don't have one:
+   **Upgrading:** `anytype update` is the built-in route. If you replace
+   `~/.local/bin/anytype` by hand, delete the old file before you copy in the
+   new one. On macOS, `cp` over an existing binary keeps the same inode, and
+   the kernel's code-signing cache SIGKILLs the new binary (exit 137) when it
+   runs.
+   **After upgrading the CLI binary, run `anytype service restart`.** The
+   service keeps running the old engine until it restarts. Until then `/v2/*`
+   returns a bare `404 page not found`, and scoped key creation fails with
+   "the running Anytype service is older than this CLI".
+2. An API key must be available in `$ANYTYPE_API_KEY`. Since CLI v0.4.0, keys
+   carry a **scope**, and you must choose one when you create a key:
    ```bash
-   anytype auth apikey create <name>   # prints a new key for the logged-in bot account
+   anytype auth apikey create <name> --all-spaces --read-write   # works on v1 AND v2
+   anytype auth apikey create <name> --space "Malaga-AI" --read-only   # v2 only (repeat --space)
    anytype auth apikey list            # list existing keys
    anytype auth apikey revoke <id>     # revoke one
    ```
+   | Key | `/v1` | `/v2` |
+   |---|---|---|
+   | Created before CLI v0.4.0 ("Limited" scope) | ✅ | ❌ 403 `forbidden`: "create a new api key with JsonAPI scope" |
+   | `--all-spaces --read-write` | ✅ | ✅ |
+   | `--space ...` or `--read-only` | ❌ 403 `v1_not_available_for_scoped_keys` | ✅ |
+
+   `GET /v2/auth/whoami` shows a key's grant (spaces, permission, scope).
    (A separate "challenge" flow — `POST /v1/auth/challenges` then
    `POST /v1/auth/api_keys` — exists for pairing *other* apps with the
    Desktop app by showing a 4-digit code. You don't need it when using the
@@ -104,6 +144,204 @@ insecure storage.
 `anytype auth create <newname>` on the target Mac to mint a brand-new bot
 account, then re-join each space with a fresh invite link from Anytype
 Desktop (Space Settings → Members → Invite).
+
+## API v2 (pre-release)
+
+Verified live on 2026-10-26 with a scoped key: I created, edited, searched,
+and deleted test objects in a real space. Base URL:
+`http://127.0.0.1:31012/v2`. Send `Authorization: Bearer <key>`. **Do not send
+`Anytype-Version`** — v2 doesn't need it.
+
+### Discover before you write
+
+The server describes itself. Read these instead of guessing field names:
+
+| Request | Gives you |
+|---|---|
+| `GET /v2/schemas` | All schema `kinds` (object, search, filters, type, chatMessage, ...) and all edit `ops` |
+| `GET /v2/schemas/{kind}` | JSON schema + example for a request body (e.g. `object`, `search`, `filters` — the last includes the full filter grammar) |
+| `GET /v2/schemas/ops/{op}` | JSON schema + `example_body` for one PATCH op |
+| `POST /v2/validate` | Validates an AnyBlock document without writing it |
+
+### IDs
+
+- **Spaces use short references.** `GET /v2/spaces` returns `"id":"tf5ume"`.
+  This is the last 6 characters of the first half of the full
+  `<cid>.<replicationKey>` id. Every space route accepts either form. A short
+  reference is unique only among the spaces the key can see now, so use
+  `?ids=full` for ids you store.
+- **Block ids are shortened** to suffixes unique within the document (`fb166`).
+  Send them back exactly as you read them. Add `?ids=full` to get full ids.
+- Object ids stay full (`bafyrei...`).
+- **Properties and types use keys**, not ids: `/properties/{key}`,
+  `/types/{type}` (e.g. `/types/task`). Inputs also accept display names and
+  spelling variants (`due_date`, `dueDate`, `Due date`).
+- **Select options use their names**, never ids, and **names are
+  case-sensitive**: `In progress` ≠ `In Progress`. An unknown name returns 400
+  `option does not exist`, unless you add `?create_missing_options=true`,
+  which creates it. That's easy to do by accident, so check
+  `GET /v2/spaces/{sp}/properties/{key}/options` first.
+
+### Endpoint map (paths relative to `/v2`)
+
+| Area | Routes |
+|---|---|
+| Auth | `GET /auth/whoami`; pairing: `POST /auth/challenges`, `POST /auth/api_keys` |
+| Spaces | `GET/POST /spaces`, `GET/PATCH /spaces/{sp}` |
+| Objects | `GET/POST /spaces/{sp}/objects`, `GET/PATCH/DELETE /spaces/{sp}/objects/{id}`, `POST .../objects/{id}/discussion` |
+| Search | `POST /search` (all spaces), `POST /spaces/{sp}/search`, `POST /spaces/{sp}/search/stream` (SSE) |
+| Types | `GET/POST /spaces/{sp}/types`, `GET/PATCH/DELETE /spaces/{sp}/types/{type}` |
+| Properties | `GET/POST /spaces/{sp}/properties`, `PATCH/DELETE .../properties/{key}`, `GET .../properties/{key}/options` |
+| Templates | `GET/POST /spaces/{sp}/templates` (`?type=` filter) |
+| Queries / Collections | `POST /spaces/{sp}/queries`, `GET .../queries/{id}/views`, `GET .../queries/{id}/objects`; same shape under `/collections` |
+| Chats | `GET/POST /spaces/{sp}/chats`, `GET .../chats/stream` (SSE), `GET/POST .../chats/{chat}/messages`, `.../messages/stream` (SSE), `PATCH/DELETE .../messages/{msg}`, `POST .../messages/{msg}/reactions`, `POST .../chats/{chat}/read`, `POST .../chats/{chat}/status` |
+| Files | `POST /spaces/{sp}/files`, `GET .../files/{id}/content` |
+| Members | `GET /spaces/{sp}/members`, `GET .../members/me` |
+| Widgets (sidebar) | `GET/POST /spaces/{sp}/widgets`, `PATCH/DELETE .../widgets/{id}` |
+
+Lists default to **25 rows** (`offset`/`limit`). The response shape is
+`{"data":[...],"total":N,"offset":0,"limit":25,"has_more":false}`. It is flat:
+no `pagination` wrapper as in v1.
+
+### Reading an object
+
+`GET /v2/spaces/{sp}/objects/{id}` returns an AnyBlock 2.0 document:
+```json
+{"formatVersion":"2.0","id":"bafyrei...","type":"task",
+ "properties":{"name":"...","status":["In Progress"],"tag":["x"],"description":""},
+ "blocks":[{"id":"fb166","type":"heading_2","text":"Details"},
+           {"id":"32faa","type":"checkbox","text":"**Bold** item"},
+           {"id":"7269a","indent":1,"type":"paragraph","text":"child note"}]}
+```
+- Blocks are a flat array in reading order. `indent` sets nesting, and inline
+  formatting is Markdown in `text`.
+- `name` (the title) and `description` are ordinary properties.
+- Templates add `{"type":"property","property":"status"}` blocks. These are
+  the in-body property rows that v1 couldn't reach.
+- Smaller reads: `?outline=true` (structure with shortened text),
+  `?include=properties` or `?include=blocks`, `?block={id}` (one subtree),
+  `?format=md` (read-only Markdown: `{"etag","id","type","markdown"}`).
+- **The etag:** the full GET returns it only in the `ETag` response header.
+  `?format=md`, create, and PATCH responses also put `etag` in the body.
+- Archived objects stay readable, and their properties include
+  `"is_archived": true`.
+
+### Creating an object
+
+`POST /v2/spaces/{sp}/objects` → `201`:
+```json
+{"type":"task",
+ "properties":{"name":"Prepare the Q3 report","status":"In Progress","due_date":"2026-08-01"},
+ "blocks":[{"type":"heading_2","text":"Steps"},
+           {"type":"checkbox","text":"Collect the numbers"},
+           {"indent":1,"type":"paragraph","text":"Ask **finance** first"}]}
+```
+- **The type's default template applies automatically.** You don't need to
+  look it up as in v1. The response reports it:
+  `"template":{"id":...,"source":"type_default","blocks_added":9,"combined":true}`.
+  Your blocks come **after** the template's blocks. If the template already has
+  a "Details" heading and you send one too, you get two. Send
+  `"template":"none"` to start empty, or a template id to choose one.
+- The response is `{"id","type","etag", "created":{"options":[...]}?, "template":{...}?}`.
+  `created.options` lists any select options it created.
+
+### Editing: `PATCH /v2/spaces/{sp}/objects/{id}` with `{"ops":[...]}`
+
+The batch takes 1–512 ops, applied in order, and is **atomic**: if one op
+fails, nothing is applied. Ops:
+`set_properties`, `set_type`, `update_block`, `replace_subtree`,
+`insert_blocks`, `move_block`, `delete_block`, `replace_text`, `set_cell`,
+`insert_view`/`update_view`/`move_view`/`delete_view`,
+`add_items`/`remove_items` (collections). On types
+(`PATCH /v2/spaces/{sp}/types/{type}`): `add_property`, `remove_property`,
+`move_property`, plus the view ops.
+
+```json
+{"ops":[
+  {"op":"replace_text","find":"Second Q3","replace":"Second Q4"},
+  {"op":"insert_blocks","markdown":"## Next steps\n- [ ] Review"},
+  {"op":"set_properties","set":{"status":"Done"},"add":{"tag":["urgent"]},"unset":["due_date"]},
+  {"op":"update_block","match":"old exact text","set":{"text":"new text"}}
+]}
+```
+- `replace_text` / `update_block`: if you omit the block `id`, the
+  `find`/`match` text must appear in **exactly one** block. Otherwise you get
+  400 `ambiguous_input`, which lists the candidate block ids. Markup counts as
+  text (`**Bold** item`, not `Bold item`).
+- `insert_blocks`: give `markdown` or `blocks`, not both. Target with
+  `after`/`before`/`inside` (block ids), or use `position:"first"`. By default
+  it appends to the end. The response maps `created_blocks`
+  (`"ops[0].markdown[1]": "01d79"`).
+- `set_properties.add`/`remove` take only list-shaped values. The schema says
+  `add` creates unknown option names, but the live server **refuses them
+  unless you add `?create_missing_options=true`**.
+- The response is
+  `{"etag","created_blocks"?,"diff_stats":{"blocks_added",...,"properties_changed"}}`.
+
+### Concurrency, retries, dry runs
+
+| Control | Verified behavior |
+|---|---|
+| `If-Match: "<etag>"` | When it matches, the write is applied and the response carries a new etag. When it is stale, you get **409** `etag_mismatch`, with the current etag in the message. Without the header, the last write wins. |
+| `Idempotency-Key: <k>` | A retry with the same key and the same body replays the stored response and does not apply the change again. |
+| `?dry_run=true` | Works on every mutation. Returns `200` with `{"dry_run":true,"diff_stats":{...}}` and commits nothing. |
+
+### Search and filters
+
+`POST /v2/spaces/{sp}/search` (or `POST /v2/search` across all spaces):
+```json
+{"query":"report","type":"task",
+ "filter":"done = false AND (due_date < currentWeek() OR due_date IS EMPTY)",
+ "sorts":[{"property":"due_date","direction":"asc"}],
+ "fields":["name","status","due_date"]}
+```
+- `filter` is a compact string: `=`, `!=`, `<`, `>`, `<=`, `>=`, `AND`, `OR`,
+  parentheses, `IN (...)`, `NOT IN`, `CONTAINS`, `HAS ALL (...)`,
+  `IS [NOT] EMPTY`, `EXISTS`. Date functions: `today()`, `currentWeek()`,
+  `daysAgo(7)`, `daysFromNow(n)`, ... (the full grammar is at
+  `GET /v2/schemas/filters`). A structured `filters` array also exists, with
+  conditions `equal`, `not_equal`, `in`, `all_in`, `empty`, ...
+- Rows are compact: `{id, name, type, properties:{<requested fields>}}`.
+- A filter syntax error returns 400 with the character offset.
+- Deleted (archived) objects are left out of search results immediately. The
+  v1 delay before archived objects disappear did not show up in v2.
+
+### Errors
+
+v2 handlers always return
+`{"status","code","message","issues":[{"path","message","hint","see_also"?}]}`.
+`see_also` names the request that fixes the problem, e.g.
+`{"op":"get_op_schema","params":{"op":"replace_text"}}`. Codes seen:
+`validation_failed` (400; this includes unknown fields such as `replacement`),
+`ambiguous_input` (400), `not_found` (404), `etag_mismatch` (409). Errors from
+the auth or key-scope check use the older v1 shape. A route that doesn't
+exist returns a plain-text `404 page not found` with no JSON envelope.
+
+### What v2 fixes compared with v1 (verified)
+
+- A leading `## heading` or `- [ ] item` **keeps its markup**. The v1 problem
+  with the first block is gone.
+- Nested checkboxes and indented text under them keep their `indent`.
+  CommonMark rules still apply: an unindented line straight after an indented
+  paragraph merges into that paragraph as a soft break. Leave a blank line
+  between them.
+- `status` reads as the option name (`["In Progress"]`), not a tag id.
+- In-body property rows are visible as `property` blocks.
+
+### v2 limits found
+
+- There is no endpoint to delete a select option. Use v1
+  `DELETE /v1/spaces/{space_id}/properties/{property_id}/tags/{tag_id}` with an
+  unscoped key.
+- There is no PDF or other export endpoint (`?format=md` is the closest).
+- DELETE archives the object (to the Bin), and only for objects this account
+  created ("creator provenance").
+
+---
+
+## API v1 reference
+
+Everything below covers `/v1`. It is still served and still stable.
 
 ## Every request needs these headers
 
@@ -263,6 +501,13 @@ server auto-converts if not, but pass it clean.
 | POST | `/spaces/{space_id}/lists/{list_id}/objects` | Add objects to a list. Body: `{"objects": ["id1","id2"]}` |
 | DELETE | `/spaces/{space_id}/lists/{list_id}/objects/{object_id}` | Remove one object from a list |
 
+### Chats & Files (added in heart v0.51.x, not yet exercised live)
+`/spaces/{space_id}/chats` (list/create), `.../chats/{chat_id}/messages`
+(list/add, `/search`, `/stream` SSE, `/read`), `.../messages/{message_id}`
+(get/edit/delete, `/reactions`), `.../chats/{chat_id}/read_all`;
+`POST /spaces/{space_id}/files`, `GET/DELETE .../files/{file_id}`. See
+`/docs/openapi.json` for bodies. For new work, prefer the v2 chat routes.
+
 ### Members
 | Method | Path | Notes |
 |---|---|---|
@@ -329,7 +574,9 @@ The row of properties shown under an object's title (Anytype's
 
 - `CreateObjectRequest` and `UpdateObjectRequest` have no field for it — only
   `name`, `icon`, `body`/`markdown`, `type_key`, `properties`, `template_id`.
-- No endpoint exposes it (22 paths total; none for object display config).
+- No v1 endpoint exposes it (none for object display config). v2 shows the
+  in-body property rows as `{"type":"property"}` blocks, which can be moved
+  and inserted. I have not yet tested whether that covers the header row.
 - The create-object description mentions "setting featured properties" only as
   prose about server-side post-processing.
 
