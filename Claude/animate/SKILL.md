@@ -2,7 +2,7 @@
 name: animate
 description: Draft a meaningful animated diagram for technical / AI / software-engineering content (social or blog) using Motion (Framer Motion) in React. Use when creating, drafting, designing, or storyboarding an animation, motion diagram, explainer clip, or animated figure — where motion should carry meaning, not decorate. Covers the narrative/timing/visual principles, which motion primitives to reach for (delegating to the framer-motion-* skills), how to preview it live, and how to hand off to export-animation for rendering to video.
 license: MIT
-version: 1.2.0
+version: 1.3.0
 ---
 
 # Animate — meaningful motion for technical diagrams
@@ -143,6 +143,12 @@ logistics, call to action). Defaults that worked well:
   because feeds pick an early frame as the preview. One beat for the speaker and product,
   one for the product's core idea shown as a delta, and one for logistics and the CTA.
   Leave a still hold of ≥ 1.5 s at the end.
+- **Plan for the loop.** LinkedIn auto-loops videos under 30 s, and there is no off switch.
+  Fade everything to the empty background in the last ~0.3 s, so the cut back to frame 0
+  is seamless.
+- **Use real names from the product's docs** in code or terminal mockups (files, tools,
+  skills, example output). Don't invent example names. Check the docs before you build
+  the scene, and say where any illustrative content is not from the docs.
 - **Export a thumbnail PNG** of the settled speaker frame next to the MP4. LinkedIn and
   other platforms let you upload a custom thumbnail. This works better than a first frame
   that is still empty.
@@ -191,7 +197,9 @@ const flush = () => page.evaluate(() => new Promise((r) => {   // let React comm
   const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0);
 }));
 for (let i = 0; i < FPS * DURATION; i++) {
-  if (i > 0) await page.clock.runFor(1000 / FPS);  // always 1 frame, never big jumps
+  // Always 1 frame, never big jumps. runFor rounds to whole ms (33.33 → 34, ~2% fast),
+  // so step by integer differences:
+  if (i > 0) await page.clock.runFor(Math.round(i * 1000 / FPS) - Math.round((i - 1) * 1000 / FPS));
   await flush();
   await page.locator("#stage").screenshot({ path: `frames/f-${String(i).padStart(4, "0")}.png` });
 }
