@@ -2,7 +2,7 @@
 name: animate
 description: Draft a meaningful animated diagram for technical / AI / software-engineering content (social or blog) using Motion (Framer Motion) in React. Use when creating, drafting, designing, or storyboarding an animation, motion diagram, explainer clip, or animated figure — where motion should carry meaning, not decorate. Covers the narrative/timing/visual principles, which motion primitives to reach for (delegating to the framer-motion-* skills), how to preview it live, and how to hand off to export-animation for rendering to video.
 license: MIT
-version: 1.3.0
+version: 1.4.0
 ---
 
 # Animate — meaningful motion for technical diagrams
@@ -143,6 +143,12 @@ logistics, call to action). Defaults that worked well:
   because feeds pick an early frame as the preview. One beat for the speaker and product,
   one for the product's core idea shown as a delta, and one for logistics and the CTA.
   Leave a still hold of ≥ 1.5 s at the end.
+- **Give the key message its own beat.** The headline the client cares about (for
+  example "First in-person unveiling") gets a full frame and dominates it. Do not use it
+  as a sub-line under another beat.
+- **Let terminal and code lines breathe.** Show about 0.7 s per output line and 0.3 s per
+  tree line. A summary caption ("…does the rest") comes *after* the result it
+  summarizes, not before.
 - **Plan for the loop.** LinkedIn auto-loops videos under 30 s, and there is no off switch.
   Fade everything to the empty background in the last ~0.3 s, so the cut back to frame 0
   is seamless.
