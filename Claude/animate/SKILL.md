@@ -2,7 +2,7 @@
 name: animate
 description: Draft a meaningful animated diagram for technical / AI / software-engineering content (social or blog) using Motion (Framer Motion) in React. Use when creating, drafting, designing, or storyboarding an animation, motion diagram, explainer clip, or animated figure — where motion should carry meaning, not decorate. Covers the narrative/timing/visual principles, which motion primitives to reach for (delegating to the framer-motion-* skills), how to preview it live, and how to hand off to export-animation for rendering to video.
 license: MIT
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Animate — meaningful motion for technical diagrams
@@ -130,9 +130,92 @@ updates on save. Iterate until each beat reads cleanly and the start/end holds a
 > If a project skill named `run` exists, you can also use it to launch the dev server and
 > screenshot the result; otherwise the two commands above are the canonical preview path.
 
+## Social promo clips (event announcements)
+
+The same principles apply to promo videos for an event or a product (speaker, product idea,
+logistics, call to action). Defaults that worked well:
+
+- **Write the script first** as a beat table (time · on screen · motion) in a `script.md`
+  next to the clip. Get approval before you build, and update the times after you tune them.
+- **Reuse the brand assets the project already has** (for example a cover generator's
+  input folder: speaker cutout PNG, logos, palette, font). Do not invent a new look.
+- **Default to 15 s, speaker first.** The speaker must be visible in the first ~1 s,
+  because feeds pick an early frame as the preview. One beat for the speaker and product,
+  one for the product's core idea shown as a delta, and one for logistics and the CTA.
+  Leave a still hold of ≥ 1.5 s at the end.
+- **Export a thumbnail PNG** of the settled speaker frame next to the MP4. LinkedIn and
+  other platforms let you upload a custom thumbnail. This works better than a first frame
+  that is still empty.
+- **Make it silent.** All text is on screen, because feeds autoplay muted.
+- **Portrait for feeds is 1080×1350 (4:5).** Use 1080×1920 (9:16) only for Reels and
+  Stories.
+- **Do not use emoji for dates.** The Apple calendar emoji renders "JUL 17". Draw a small
+  date tile instead.
+- **Keep one logo element across beats.** Introduce the product logo big, then dock it
+  in the header by animating that same element. This keeps persistence of context.
+
+## Motion gotchas
+
+- **WAAPI ignores fake clocks.** Motion runs `opacity`, `transform`, `filter` and
+  `clipPath` through the browser's Web Animations API, which follows real time. A capture
+  that controls time (Playwright `page.clock`) must delete `Element.prototype.animate`
+  before the page loads, so that Motion falls back to its rAF engine.
+- **A child's own `transition` overrides the parent's `delayChildren`/`staggerChildren`.**
+  If a child variant sets `transition`, give each child an explicit `delay`
+  (`base + i * step`). Otherwise all children appear at once.
+- **Beats from a timer.** Drive the beats with `setTimeout` from one `BEATS` array of
+  start seconds, and mount each scene in its own `<AnimatePresence>`. Entries wait about
+  0.35 s for exits to clear.
+- **Preload before t = 0.** Load fonts with `document.fonts.load(...)` for each weight and
+  decode images with `img.decode()`. Only then set `window.__ready = true` and start the
+  timeline.
+
 ## Handoff to export
 
 Once the clip reads well in the browser, render it to a shareable file (no manual screen
 recording) with the **export-animation** skill, which captures frames in headless Chromium
 and stitches them with ffmpeg. Match the export **preset** to the aspect ratio you designed
 for (square / vertical / wide). See that skill for the one command.
+
+**Frame-exact capture (preferred).** The export skill's default real-time capture loses
+sync, because a screenshot takes longer than one frame. Use a capture script that controls
+the clock instead:
+
+```js
+await page.addInitScript(() => { delete Element.prototype.animate; }); // no WAAPI
+await page.clock.install({ time: 0 });
+await page.clock.pauseAt(1000);           // frozen while the page loads
+await page.goto(URL);
+await page.waitForFunction(() => window.__ready === true);
+const flush = () => page.evaluate(() => new Promise((r) => {   // let React commit
+  const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0);
+}));
+for (let i = 0; i < FPS * DURATION; i++) {
+  if (i > 0) await page.clock.runFor(1000 / FPS);  // always 1 frame, never big jumps
+  await flush();
+  await page.locator("#stage").screenshot({ path: `frames/f-${String(i).padStart(4, "0")}.png` });
+}
+```
+
+- **Check single frames the same way.** Add a `STILLS=3.5,10` mode that steps frame by
+  frame but only screenshots the frames you ask for. Jumping seconds in one `runFor` makes
+  React commit late, and the stills then look wrong.
+- **Review with a contact sheet.** Combine the stills with `ffmpeg … xstack` and read it
+  as one image. Check frames in the middle of transitions too, not only settled frames.
+- **Encode for social:** `ffmpeg -framerate 30 -i frames/f-%04d.png -c:v libx264
+  -pix_fmt yuv420p -crf 16 -movflags +faststart out.mp4`.
+- **Claude Code sandbox:**
+  - Headless Chrome (`chromium.launch({ channel: "chrome" })`) cannot start inside the
+    sandbox, so run the capture outside it.
+  - `npm install` needs `--cache "$TMPDIR/npm-cache"`.
+  - zsh-only expansions such as `${(s:,:)VAR}` trip the safety check. Use plain lists.
+
+A working example with `capture.mjs` and `src/Reel.jsx` is in Malaga-AI:
+`sessions/sponsored_sessions/2026_11_26_Ortus/video/app/`.
+
+## Keeping this skill current
+
+Put lessons from each clip into **this skill**, not into Claude's memory. Do not write
+memory files for animation work. Add the lesson to the right section above and bump
+`version` in the frontmatter: patch for wording, minor for new guidance, major for a
+changed workflow.
