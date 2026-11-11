@@ -15,6 +15,10 @@ still diagram would bury the insight. This skill owns the *editorial and motion-
 decisions*; the **framer-motion-\*** skills own the *API mechanics*; the
 **export-animation** skill owns *rendering to video*.
 
+The framer-motion-\* skills come from
+[C-Jeril/framer-motion-skills](https://github.com/C-Jeril/framer-motion-skills). If they
+are not installed, tell the user to get them there.
+
 If the user just wants Framer Motion API help (how does `layoutId` work?), skip straight to
 the relevant framer-motion-\* skill. Use this skill when the deliverable is a *clip that
 teaches something*.
