@@ -1,7 +1,7 @@
 ---
 name: browser-visualization
 description: Headlessly load a locally-served page in a real Chrome, check for console/page errors and broken resources (including <video> load state), and capture a full-page screenshot. Use when asked to "check it in a browser," review an HTML page or local site, or verify a UI/frontend change actually renders — anywhere a visual/functional check of a local page is needed but there's no interactive GUI browser available.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Browser visualization — headless page check
@@ -80,6 +80,19 @@ false. Then **read the screenshot with the `Read` tool** — the JSON tells
 you whether it's broken, but only looking at the image confirms it actually
 looks right (layout, spacing, dark/light theme, nothing overlapping).
 
+## Running inside an agent sandbox
+
+Headless Chrome needs to start helper processes and write a profile. An OS-level sandbox
+(for example the Claude Code Bash sandbox) blocks that, and the launch fails with crashpad
+or `ProcessSingleton` errors. This skill does not fix that, because the problem is the
+sandbox, not the launch method.
+
+- Read the error first. Missing files or a wrong URL are not sandbox problems.
+- If it is the sandbox, do not bypass it quietly. Tell the user that the check must run
+  outside the sandbox and get their approval, or give them the command to run.
+- For time-controlled rendering of animations, use the `export-animation` skill. This
+  skill checks a page at one moment; it does not control time.
+
 ## Reading the JSON report
 
 - **`verdict.ok`** — the actionable answer. `true` means: page navigated,
@@ -135,6 +148,8 @@ wired up.
 
 ## Changelog
 
+- **1.1.0** (2026-11-11) — Added "Running inside an agent sandbox": how to recognize a
+  sandbox launch failure, and to ask the user instead of bypassing the sandbox.
 - **1.0.0** (2026-08-09) — Initial version, generalized from a project-
   specific driver after validating it against a static multi-`<video>`
   reference page and an interactive JS page (SVG overlays, live charts,

@@ -2,7 +2,7 @@
 name: animate
 description: Draft a meaningful animated diagram for technical / AI / software-engineering content (social or blog) using Motion (Framer Motion) in React. Use when creating, drafting, designing, or storyboarding an animation, motion diagram, explainer clip, or animated figure — where motion should carry meaning, not decorate. Covers the narrative/timing/visual principles, which motion primitives to reach for (delegating to the framer-motion-* skills), how to preview it live, and how to hand off to export-animation for rendering to video.
 license: MIT
-version: 1.4.0
+version: 1.5.0
 ---
 
 # Animate — meaningful motion for technical diagrams
@@ -30,6 +30,7 @@ teaches something*.
 3. A map from **motion primitives → the framer-motion-\* skill** that documents each.
 4. **Worked example patterns** for common technical topics.
 5. The **preview/visualize** workflow (Vite dev server) and the **handoff to export**.
+6. **Guidelines for short social clips** and common **Motion gotchas**.
 
 ## Guiding philosophy
 
@@ -130,106 +131,71 @@ updates on save. Iterate until each beat reads cleanly and the start/end holds a
 > If a project skill named `run` exists, you can also use it to launch the dev server and
 > screenshot the result; otherwise the two commands above are the canonical preview path.
 
-## Social promo clips (event announcements)
+## Short social clips (guidelines)
 
-The same principles apply to promo videos for an event or a product (speaker, product idea,
-logistics, call to action). Defaults that worked well:
+These apply to any short clip for a feed: an explainer, an announcement, a product demo.
 
-- **Write the script first** as a beat table (time · on screen · motion) in a `script.md`
-  next to the clip. Get approval before you build, and update the times after you tune them.
-- **Reuse the brand assets the project already has** (for example a cover generator's
-  input folder: speaker cutout PNG, logos, palette, font). Do not invent a new look.
-- **Default to 15 s, speaker first.** The speaker must be visible in the first ~1 s,
-  because feeds pick an early frame as the preview. One beat for the speaker and product,
-  one for the product's core idea shown as a delta, and one for logistics and the CTA.
-  Leave a still hold of ≥ 1.5 s at the end.
-- **Give the key message its own beat.** The headline the client cares about (for
-  example "First in-person unveiling") gets a full frame and dominates it. Do not use it
-  as a sub-line under another beat.
-- **Let terminal and code lines breathe.** Show about 0.7 s per output line and 0.3 s per
-  tree line. A summary caption ("…does the rest") comes *after* the result it
-  summarizes, not before.
-- **Plan for the loop.** LinkedIn auto-loops videos under 30 s, and there is no off switch.
-  Fade everything to the empty background in the last ~0.3 s, so the cut back to frame 0
-  is seamless.
-- **Use real names from the product's docs** in code or terminal mockups (files, tools,
-  skills, example output). Don't invent example names. Check the docs before you build
-  the scene, and say where any illustrative content is not from the docs.
-- **Export a thumbnail PNG** of the settled speaker frame next to the MP4. LinkedIn and
-  other platforms let you upload a custom thumbnail. This works better than a first frame
-  that is still empty.
-- **Make it silent.** All text is on screen, because feeds autoplay muted.
-- **Portrait for feeds is 1080×1350 (4:5).** Use 1080×1920 (9:16) only for Reels and
-  Stories.
-- **Do not use emoji for dates.** The Apple calendar emoji renders "JUL 17". Draw a small
-  date tile instead.
-- **Keep one logo element across beats.** Introduce the product logo big, then dock it
-  in the header by animating that same element. This keeps persistence of context.
+**Process**
+- **Script before code.** Write a beat table (time · on screen · motion) next to the clip
+  and get approval before you build. Update it when the timings change.
+- **Start from what exists.** Reuse the project's brand assets, palette and fonts. Check
+  that every asset you need exists before you build, and list what is missing.
+- **Use real content.** Code, terminal and UI mockups use names from the real product or
+  its docs. Check the source first, and say which parts are illustrative.
+- **Review frames, not impressions.** Look at stills in the middle of transitions and at
+  every settled beat, side by side on one contact sheet, before you render the full clip.
+
+**Structure**
+- **Lead with the strongest hook.** Feeds judge the clip on its first second. Show the main
+  subject (person, product, result) in the first ~1 s, not an empty or title-only frame.
+- **The key message gets its own beat.** The line the audience must remember fills a frame
+  and dominates it. It is never a sub-line under another beat.
+- **Captions follow what they summarize.** A conclusion ("…and it just works") comes after
+  the result is on screen, not before.
+- **Short by default.** 15–20 s, one idea per beat. If a beat feels rushed, cut content or
+  extend the clip; do not speed up the motion.
+
+**Pacing**
+- Give text time to be read: about 0.7 s per output or terminal line, 0.3 s per list or
+  tree line, and at least 1.5 s of still hold on the final frame.
+- Plan for the loop. Many feeds auto-loop short videos and the viewer cannot turn it off.
+  End by fading to the empty background, so the cut back to frame 0 is seamless.
+
+**Format**
+- Design at the destination's aspect ratio: 4:5 for most feeds, 9:16 for stories and
+  reels, 16:9 for blog and video.
+- Make it work muted. Feeds autoplay without sound, so all meaning must be on screen.
+- Export a thumbnail of the best frame next to the video. Most platforms let you upload a
+  custom cover, which is better than an early frame that is still building.
+- Do not use emoji for content (dates, icons). They render differently on each platform.
+  Draw the element instead.
+- Keep one identity per element across beats. Move and resize the element to its new place
+  instead of removing it and adding a copy.
 
 ## Motion gotchas
 
-- **WAAPI ignores fake clocks.** Motion runs `opacity`, `transform`, `filter` and
-  `clipPath` through the browser's Web Animations API, which follows real time. A capture
-  that controls time (Playwright `page.clock`) must delete `Element.prototype.animate`
-  before the page loads, so that Motion falls back to its rAF engine.
 - **A child's own `transition` overrides the parent's `delayChildren`/`staggerChildren`.**
   If a child variant sets `transition`, give each child an explicit `delay`
   (`base + i * step`). Otherwise all children appear at once.
-- **Beats from a timer.** Drive the beats with `setTimeout` from one `BEATS` array of
-  start seconds, and mount each scene in its own `<AnimatePresence>`. Entries wait about
-  0.35 s for exits to clear.
-- **Preload before t = 0.** Load fonts with `document.fonts.load(...)` for each weight and
-  decode images with `img.decode()`. Only then set `window.__ready = true` and start the
-  timeline.
+- **Drive beats from one timeline.** Keep the beat start times in one array and mount
+  each scene in its own `<AnimatePresence>`. Let entries wait for exits to clear.
+- **Preload before t = 0.** Wait for fonts (`document.fonts.load`) and images
+  (`img.decode()`), then signal ready (for example `window.__ready = true`) and start the
+  timeline. The export step waits for that signal.
+- **Motion uses WAAPI for some properties.** `opacity`, `transform`, `filter` and
+  `clipPath` can run on the browser's Web Animations API, in real time. A capture that
+  controls time must account for this (see `export-animation`).
 
 ## Handoff to export
 
 Once the clip reads well in the browser, render it to a shareable file (no manual screen
-recording) with the **export-animation** skill, which captures frames in headless Chromium
-and stitches them with ffmpeg. Match the export **preset** to the aspect ratio you designed
-for (square / vertical / wide). See that skill for the one command.
-
-**Frame-exact capture (preferred).** The export skill's default real-time capture loses
-sync, because a screenshot takes longer than one frame. Use a capture script that controls
-the clock instead:
-
-```js
-await page.addInitScript(() => { delete Element.prototype.animate; }); // no WAAPI
-await page.clock.install({ time: 0 });
-await page.clock.pauseAt(1000);           // frozen while the page loads
-await page.goto(URL);
-await page.waitForFunction(() => window.__ready === true);
-const flush = () => page.evaluate(() => new Promise((r) => {   // let React commit
-  const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0);
-}));
-for (let i = 0; i < FPS * DURATION; i++) {
-  // Always 1 frame, never big jumps. runFor rounds to whole ms (33.33 → 34, ~2% fast),
-  // so step by integer differences:
-  if (i > 0) await page.clock.runFor(Math.round(i * 1000 / FPS) - Math.round((i - 1) * 1000 / FPS));
-  await flush();
-  await page.locator("#stage").screenshot({ path: `frames/f-${String(i).padStart(4, "0")}.png` });
-}
-```
-
-- **Check single frames the same way.** Add a `STILLS=3.5,10` mode that steps frame by
-  frame but only screenshots the frames you ask for. Jumping seconds in one `runFor` makes
-  React commit late, and the stills then look wrong.
-- **Review with a contact sheet.** Combine the stills with `ffmpeg … xstack` and read it
-  as one image. Check frames in the middle of transitions too, not only settled frames.
-- **Encode for social:** `ffmpeg -framerate 30 -i frames/f-%04d.png -c:v libx264
-  -pix_fmt yuv420p -crf 16 -movflags +faststart out.mp4`.
-- **Claude Code sandbox:**
-  - Headless Chrome (`chromium.launch({ channel: "chrome" })`) cannot start inside the
-    sandbox, so run the capture outside it.
-  - `npm install` needs `--cache "$TMPDIR/npm-cache"`.
-  - zsh-only expansions such as `${(s:,:)VAR}` trip the safety check. Use plain lists.
-
-A working example with `capture.mjs` and `src/Reel.jsx` is in Malaga-AI:
-`sessions/sponsored_sessions/2026_11_26_Ortus/video/app/`.
+recording) with the **export-animation** skill. Use its **frame-exact** mode for any clip
+with timed beats, because real-time capture drifts. Match the export preset to the aspect
+ratio you designed for.
 
 ## Keeping this skill current
 
 Put lessons from each clip into **this skill**, not into Claude's memory. Do not write
-memory files for animation work. Add the lesson to the right section above and bump
-`version` in the frontmatter: patch for wording, minor for new guidance, major for a
-changed workflow.
+memory files for animation work. Add the lesson to the right section above as a general
+guideline (no project names, no one-off examples) and bump `version` in the frontmatter:
+patch for wording, minor for new guidance, major for a changed workflow.

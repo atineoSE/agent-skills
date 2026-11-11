@@ -2,7 +2,7 @@
 name: export-animation
 description: Render a Motion (Framer Motion) + React/Vite animation to a .mov (or .gif) automatically — headless Chromium frame capture stitched with ffmpeg, no manual screen recording. Use when exporting, rendering, capturing, converting, or "turning into a video/MOV/GIF" a React/Motion animation, or batch-exporting many clips. macOS-oriented. Pairs with the `animate` skill, which designs the clip.
 license: MIT
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Export Animation — Motion/React clip → video file
@@ -106,6 +106,56 @@ Set these on the command; `export.sh` and `capture.mjs` read them.
   animation root, compute every animated value from `window.__t`, and run with
   `DETERMINISTIC=true`. The script seeks `window.__seek(t)` once per frame for bit-for-bit
   reproducibility. Use when batching at scale or when exactness matters.
+- **Frame-exact with a fake clock (preferred for timed beats)** — no changes to the clip.
+  The capture controls the page's clock and advances it one frame per screenshot, so the
+  clip's own timers and Motion's rAF loop see exact time. Real-time capture loses sync,
+  because one screenshot takes longer than one frame.
+
+### Frame-exact capture with a fake clock
+
+```js
+await page.addInitScript(() => { delete Element.prototype.animate; }); // force rAF, not WAAPI
+await page.clock.install({ time: 0 });
+await page.clock.pauseAt(1000);               // time stays frozen while the page loads
+await page.goto(URL, { waitUntil: "networkidle" });
+await page.waitForFunction(() => window.__ready === true);  // the clip's preload signal
+const flush = () => page.evaluate(() => new Promise((r) => {   // let React commit
+  const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0);
+}));
+for (let i = 0; i < FPS * DURATION; i++) {
+  if (i > 0) await page.clock.runFor(Math.round(i * 1000 / FPS) - Math.round((i - 1) * 1000 / FPS));
+  await flush();
+  await page.locator(SELECTOR).screenshot({ path: `frames/f-${String(i).padStart(4, "0")}.png` });
+}
+```
+
+Guidelines for any clock-controlled capture:
+- **Disable WAAPI.** Browser-native animations follow real time and ignore the fake clock.
+  Remove `Element.prototype.animate` before the page loads, so libraries fall back to rAF.
+- **Freeze time during load.** Otherwise the timeline starts before the first frame.
+- **Step one frame at a time.** Large jumps let state changes commit late, so animations
+  start late and stills look wrong.
+- **Step by integer milliseconds.** Clock APIs round fractional steps (33.33 → 34 ms
+  at 30 fps, about 2% fast). Step by the difference of rounded cumulative times.
+- **Wait for the clip's ready signal** (fonts and images loaded) before frame 0.
+
+## Checking before the full render
+
+- Add a stills mode (for example `STILLS=3.5,10`) that steps frame by frame but saves only
+  the requested times. Rendering a few stills is faster than a full render.
+- Check frames in the middle of transitions, not only settled ones.
+- Combine the stills into one contact sheet (`ffmpeg … -filter_complex xstack`) and review
+  it as a single image.
+
+## Encoding for social
+
+```bash
+ffmpeg -framerate 30 -i frames/f-%04d.png -c:v libx264 -pix_fmt yuv420p -crf 16 \
+  -preset slow -movflags +faststart out.mp4
+```
+
+`yuv420p` is needed for playback on most platforms. `+faststart` lets the video start
+before it is fully downloaded. Save a thumbnail PNG of the cover frame next to the MP4.
 
 ## Aspect / platform presets
 
@@ -134,3 +184,17 @@ done
   freeze-frames read cleanly (the `animate` skill bakes this in).
 - Capture targets one node (`SELECTOR`). Give the animation a single root (`<svg>` or
   `<div id="stage">`) so the crop is exactly the canvas.
+- If Playwright's bundled browser is not installed, launch the system Chrome with
+  `chromium.launch({ channel: "chrome" })` instead of downloading one.
+- **Agent sandboxes.** Chrome cannot start inside a sandbox that blocks its helper
+  processes (for example the Claude Code Bash sandbox: crashpad and ProcessSingleton
+  errors). Do not try to bypass the sandbox quietly. Tell the user that the capture needs
+  to run outside it, and get their approval or give them the command to run.
+- Package managers can fail on a cache folder the sandbox cannot write. Point the cache
+  at a temporary folder (`npm install --cache "$TMPDIR/npm-cache"`).
+
+## Changelog
+
+- **1.1.0** — Frame-exact capture with a fake clock, checks before the full render, social
+  encode settings, system Chrome and sandbox notes.
+- **1.0.0** — Initial version.
