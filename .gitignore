@@ -7,3 +7,6 @@ Claude/synced/
 
 # Machine-local symlink into the ola repo
 Claude/ola-plan
+
+# Third-party Framer Motion skills, installed locally, not ours to redistribute
+Claude/framer-motion-*/
