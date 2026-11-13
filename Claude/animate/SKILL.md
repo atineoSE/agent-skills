@@ -2,7 +2,7 @@
 name: animate
 description: Draft a meaningful animated diagram for technical / AI / software-engineering content (social or blog) using Motion (Framer Motion) in React. Use when creating, drafting, designing, or storyboarding an animation, motion diagram, explainer clip, or animated figure — where motion should carry meaning, not decorate. Covers the narrative/timing/visual principles, which motion primitives to reach for (delegating to the framer-motion-* skills), how to preview it live, and how to hand off to export-animation for rendering to video.
 license: MIT
-version: 1.5.0
+version: 1.8.0
 ---
 
 # Animate — meaningful motion for technical diagrams
@@ -140,6 +140,12 @@ These apply to any short clip for a feed: an explainer, an announcement, a produ
   and get approval before you build. Update it when the timings change.
 - **Start from what exists.** Reuse the project's brand assets, palette and fonts. Check
   that every asset you need exists before you build, and list what is missing.
+- **Use the logo variant made for your background.** Logos often come in light-background
+  and dark-background versions. In a light-background version, outlines may use the same
+  dark color as your canvas, so parts of the mark disappear and only the accent details
+  show. Compare the rendered logo with the brand's reference image. If you only have the
+  wrong variant, make a copy and change those colors. Thicken hairline strokes when the
+  logo is rendered small: under ~1 px they fade.
 - **Use real content.** Code, terminal and UI mockups use names from the real product or
   its docs. Check the source first, and say which parts are illustrative.
 - **Review frames, not impressions.** Look at stills in the middle of transitions and at
@@ -148,6 +154,10 @@ These apply to any short clip for a feed: an explainer, an announcement, a produ
 **Structure**
 - **Lead with the strongest hook.** Feeds judge the clip on its first second. Show the main
   subject (person, product, result) in the first ~1 s, not an empty or title-only frame.
+- **Open on a finished frame.** Players, link previews and chat apps often use an early
+  frame of the video, not the uploaded thumbnail. Make frame 0 a complete, settled poster
+  (no build-in), and start the motion after it. Still upload a custom thumbnail where the
+  platform allows one.
 - **The key message gets its own beat.** The line the audience must remember fills a frame
   and dominates it. It is never a sub-line under another beat.
 - **Captions follow what they summarize.** A conclusion ("…and it just works") comes after
@@ -159,11 +169,14 @@ These apply to any short clip for a feed: an explainer, an announcement, a produ
 - Give text time to be read: about 0.7 s per output or terminal line, 0.3 s per list or
   tree line, and at least 1.5 s of still hold on the final frame.
 - Plan for the loop. Many feeds auto-loop short videos and the viewer cannot turn it off.
-  End by fading to the empty background, so the cut back to frame 0 is seamless.
+  End by fading back into the opening frame, so the cut back to frame 0 is seamless.
 
 **Format**
 - Design at the destination's aspect ratio: 4:5 for most feeds, 9:16 for stories and
   reels, 16:9 for blog and video.
+  When a platform asks for "any vertical" video, design at 9:16: some uploaders reject
+  4:5 (Eventbrite does; see the `eventbrite` skill). Lay the content out again for the
+  taller frame instead of adding bars.
 - Make it work muted. Feeds autoplay without sound, so all meaning must be on screen.
 - Export a thumbnail of the best frame next to the video. Most platforms let you upload a
   custom cover, which is better than an early frame that is still building.
@@ -180,8 +193,11 @@ These apply to any short clip for a feed: an explainer, an announcement, a produ
 - **Drive beats from one timeline.** Keep the beat start times in one array and mount
   each scene in its own `<AnimatePresence>`. Let entries wait for exits to clear.
 - **Preload before t = 0.** Wait for fonts (`document.fonts.load`) and images
-  (`img.decode()`), then signal ready (for example `window.__ready = true`) and start the
-  timeline. The export step waits for that signal.
+  (`img.decode()`), then start the timeline. Signal ready (for example
+  `window.__ready = true`) only after the opening frame is rendered. The export step waits
+  for that signal, so frame 0 is never empty.
+  Set the flag directly in an effect, not inside `requestAnimationFrame`: a frame-exact
+  capture pauses a fake clock while it waits, so rAF never fires and the export times out.
 - **Motion uses WAAPI for some properties.** `opacity`, `transform`, `filter` and
   `clipPath` can run on the browser's Web Animations API, in real time. A capture that
   controls time must account for this (see `export-animation`).

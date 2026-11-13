@@ -1,6 +1,6 @@
 ---
 name: eventbrite
-version: 1.0.0
+version: 1.5.0
 description: Use the Eventbrite v3 REST API (via the private token in $EVENTBRITE_API_KEY) to read and manage events, ticket classes, attendees, orders, venues, and webhooks. Use when the user wants to look up, create, or update Eventbrite events/tickets/attendees/orders programmatically.
 user-invocable: true
 allowed-tools: Bash
@@ -8,7 +8,7 @@ allowed-tools: Bash
 
 # Eventbrite API
 
-> **Skill version: 1.3.0** — last verified against a live account on **2026-10-21**
+> **Skill version: 1.5.0** — last verified against a live account on **2026-11-13**
 > (API `v3`, base `https://www.eventbriteapi.com/v3/`).
 >
 > **Keep this in sync.** Whenever you discover a new endpoint, a changed
@@ -271,6 +271,11 @@ is true.
 Orders are private: visible only to the buyer or a member of the owning
 Organization.
 
+### Organizers (public profile, follower count)
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/organizers/{organizer_id}/` | Public organizer profile. **Follower count lives at `follow_status.num_followers`** (verified live 2026-11-12: Malaga-AI = 458). Get the `organizer_id` from any event's `organizer_id` field (Malaga-AI's is `78918327173`). `num_past_events`/`num_future_events` came back `0` despite many events — don't trust them. |
+
 ### Venues
 | Method | Path | Notes |
 |---|---|---|
@@ -346,6 +351,30 @@ curl -s -X POST "${AUTH[@]}" -H "Content-Type: application/json" \
   -d '{"endpoint_url":"https://example.com/webhook","actions":"event.updated"}'
 curl -s -X DELETE "${AUTH[@]}" "https://www.eventbriteapi.com/v3/webhooks/$WEBHOOK_ID/"
 ```
+
+## Event page video (uploaded in the web UI)
+
+The event page can show a short video. Upload it in the event editor; this skill does not
+cover an API endpoint for it.
+
+Published requirements: min 480p, "any vertical" ratio, up to 1 min, MP4 or MOV,
+MPEG-4 Part 2 or H.264. Eventbrite also asks for venue and atmosphere shots, not text.
+
+Verified on 2026-11-13:
+- **"Any vertical" is not true.** A valid 4:5 file (1080×1350, H.264, MP4) was rejected with
+  *"Video aspect ratio is not supported. Please upload a vertical video."*
+- A 9:16 file (1080×1920, H.264 High, yuv420p, square pixels, silent AAC track, `+faststart`)
+  was accepted. Deliver 9:16 and design for it from the start. Bars added to a 4:5 clip
+  work, but they waste space.
+- Check a file before you upload it:
+  `ffprobe -v error -show_entries stream=codec_name,width,height,sample_aspect_ratio,duration -of compact video.mp4`
+- To encode frames or another file to a safe 9:16 MP4:
+  ```bash
+  ffmpeg -i in.mp4 -f lavfi -i anullsrc=r=48000:cl=stereo -map 0:v -map 1:a -shortest \
+    -c:v libx264 -profile:v high -pix_fmt yuv420p -vf setsar=1 -crf 18 \
+    -c:a aac -b:a 128k -movflags +faststart out_9x16.mp4
+  ```
+  The source must already be 1080×1920. Otherwise add a `scale` or `pad` filter.
 
 ## Gotchas learned from live testing
 
